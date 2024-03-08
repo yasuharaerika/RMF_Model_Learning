@@ -353,18 +353,19 @@ MSN_DDMEX, Etot_DDMEX, Ptot_DDMEX, EA_DDMEX, Esym_DDMEX = Properties.transpose()
 def GetY(x,y,x0):
     k = (y[1]-y[0])/(x[1]-x[0])
     return y[0] + k*(x0-x[0])
-def SaturationPointProperties(RHOB, EA, K, Esym, Esls, MS, point):
+def SaturationPointProperties(RHOB, EA, K, Esym, Esls, MS, P):
     for i in range(len(RHOB)):
-        if RHOB[i] <= point and point <= RHOB[i+1]:
+        if P[i] <= 0 and 0 <= P[i+1]:
+            point = GetY(P[i:i+2], RHOB[i:i+2] , 0)
             x = RHOB[i:i+2]
             EA0   = GetY(x, EA[i:i+2]    , point)
-            K0    = GetY(x, K[i+1:i+3]   , point)
+            K0    = GetY(x, K[i-1:i+1]   , point)
             Esym0 = GetY(x, Esym[i:i+2]  , point)
-            Esls0 = GetY(x, Esls[i+1:i+3], point)
+            Esls0 = GetY(x, Esls[i-1:i+1], point)
             MS0   = GetY(x, MS[i:i+2]    , point)
             break
     return point, EA0, K0, Esym0, Esls0, MS0/DDMEX.M_N
-# SSP = SaturationPointProperties(RHOB, EA, K[1], Esym, Esls[1], MSN, 0.152)
+# SSP = SaturationPointProperties(RHOB, EA, K[1], Esym, Esls[1], MSN, Ptot)
 
 ###
 # DDME2

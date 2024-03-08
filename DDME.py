@@ -230,7 +230,32 @@ class DDME_Model():
             dP_dR = (P[I+1]-P[I-1])/(2*h)
             K.append(9*dP_dR)
         return rho_B[1:-1], np.array(K)
-
+    # 对称核物质偏度
+    def SkewnessOfSymmetry(self, epsilon, rho_B):
+        N = len(rho_B) - 6
+        Q = []
+        E = epsilon/rho_B
+        for i in range(N):
+            I = i+3
+            h = ((rho_B[I+3]+rho_B[I+2]+rho_B[I+1]) - \
+                 (rho_B[I-3]+rho_B[I-2]+rho_B[I-1])) / 12
+            dE_dR3 = (E[I-3]-8*E[I-2]+13*E[I-1]-13*E[I+1]+8*E[I+2]-E[I+3]) / (8*h**3)
+            q = 27*rho_B[I]**3*dE_dR3
+            Q.append(q)
+        return rho_B[3:-3], np.array(Q)
+    # 对称能偏度
+    def SkewnessOfEsym(self, Esym, rho_B):
+        N = len(rho_B) - 6
+        Q0 = []     
+        for i in range(N):
+            I = i+3
+            h = ((rho_B[I+3]+rho_B[I+2]+rho_B[I+1]) - \
+                 (rho_B[I-3]+rho_B[I-2]+rho_B[I-1])) / 12
+            dE_dR3 = (Esym[I-3]-8*Esym[I-2]+13*Esym[I-1]-13*Esym[I+1]+ \
+                      8*Esym[I+2]-Esym[I+3]) / (8*h**3)
+            q = 27*rho_B[I]**3*dE_dR3
+            Q0.append(q)
+        return rho_B[3:-3], np.array(Q0)
     # 核物质性质
     def GetProperties(self, Value, RHOB):
         self.Initialization(Value, RHOB)
@@ -245,7 +270,7 @@ class DDME_Model():
     
 
 # 参数
-IRHOB = 1001
+IRHOB = 2001
 RHOB = np.linspace(0.001,1.001,IRHOB) 
 InitialValues = [0.01, 0.01, 0.01] # 求解初值
 DDMEX_parameters = [547.3327, 783, 763, 10.7067, 13.3388, 7.2380, 1.3970, 1.3350,
@@ -270,23 +295,29 @@ for i in range(IRHOB):
 MSN_SNM, Etot_SNM, Ptot_SNM, EA_SNM, Esym_SNM = Properties_SNM.transpose()
 Esls_SNM = DDMEX.SymmetryEnergySlope(Esym_SNM, RHOB)
 K_SNM = DDMEX.Imcompressibility(Ptot_SNM, RHOB)
+Q_SNM = DDMEX.SkewnessOfSymmetry(Etot_SNM, RHOB)
+Qsym_SNM = DDMEX.SkewnessOfEsym(Esym_SNM, RHOB)
 
 # 饱和点性质
 def GetY(x,y,x0):
     k = (y[1]-y[0])/(x[1]-x[0])
     return y[0] + k*(x0-x[0])
-def SaturationPointProperties(RHOB, EA, K, Esym, Esls, MS, point):
+def SaturationPointProperties(RHOB, EA, K, Esym, Esls, Q, Qsym, MS, P):
     for i in range(len(RHOB)):
-        if RHOB[i] <= point and point <= RHOB[i+1]:
+        if P[i] <= 0 and 0 <= P[i+1]:
             x = RHOB[i:i+2]
+            point = GetY(P[i:i+2], x, 0) # 压强为0的点
             EA0   = GetY(x, EA[i:i+2]    , point)
-            K0    = GetY(x, K[i+1:i+3]   , point)
+            K0    = GetY(x, K[i-1:i+1]   , point)
             Esym0 = GetY(x, Esym[i:i+2]  , point)
-            Esls0 = GetY(x, Esls[i+1:i+3], point)
+            Esls0 = GetY(x, Esls[i-1:i+1], point)
+            Q0    = GetY(x, Q[i-3:i-1]   , point)
+            Qsym0 = GetY(x, Qsym[i-3:i-1], point)
             MS0   = GetY(x, MS[i:i+2]    , point)
             break
-    return point, EA0, K0, Esym0, Esls0, MS0/DDMEX.M_N
-SSP = SaturationPointProperties(RHOB, EA_SNM, K_SNM[1], Esym_SNM, Esls_SNM[1], MSN_SNM, 0.152)
+    return point, EA0, K0, Esym0, Esls0, Q0, Qsym0, MS0/DDMEX.M_N
+SSP = SaturationPointProperties(RHOB, EA_SNM, K_SNM[1], Esym_SNM, Esls_SNM[1],\
+                                Q_SNM[1], Qsym_SNM[1], MSN_SNM, Ptot_SNM)
 print('DD-MEX:', SSP)
 
 # 耦合常数
@@ -337,7 +368,7 @@ def ax_rho_p(ax):
     ax.set_xlim(0,0.5)
     ax.set_ylim(1e-2,1e3)
     ax.set_xlabel(r'$\rho_B\ $[fm$^{-3}$]',fontsize=50)
-    ax.set_ylabel(r'P$\ $[MeV]',fontsize=50)
+    ax.set_ylabel(r'$p\ $[MeV/fm$^3$]',fontsize=50)
     xminorLocator = ticker.MultipleLocator(0.02) 
     ax.xaxis.set_minor_locator(xminorLocator)
 def ax_rho_esym(ax):
@@ -353,7 +384,7 @@ def ax_rho_esls(ax):
     ax.set_xlim(0,0.5)
     ax.set_ylim(0,80)
     ax.set_xlabel(r'$\rho_B$[fm$^{-3}$]',fontsize=50)
-    ax.set_ylabel(r'The$\ $slope$\ $of$\ $symmetry$\ $energy',fontsize=50)
+    ax.set_ylabel(r'The$\ $slope$\ $of$\ $symmetry$\ $energy$\ L$',fontsize=40)
     xminorLocator = ticker.MultipleLocator(0.02) 
     ax.xaxis.set_minor_locator(xminorLocator)
     yminorLocator = ticker.MultipleLocator(2) 
@@ -409,7 +440,10 @@ for i in range(IRHOB):
 MSN_SNM2, Etot_SNM2, Ptot_SNM2, EA_SNM2, Esym_SNM2 = Properties_SNM2.transpose()
 Esls_SNM2 = DDME2.SymmetryEnergySlope(Esym_SNM2, RHOB)
 K_SNM2 = DDME2.Imcompressibility(Ptot_SNM2, RHOB)
-SSP2 = SaturationPointProperties(RHOB, EA_SNM2, K_SNM2[1], Esym_SNM2, Esls_SNM2[1], MSN_SNM2, 0.152)
+Q_SNM2 = DDMEX.SkewnessOfSymmetry(Etot_SNM2, RHOB)
+Qsym_SNM2 = DDMEX.SkewnessOfEsym(Esym_SNM2, RHOB)
+SSP2 = SaturationPointProperties(RHOB, EA_SNM2, K_SNM2[1], Esym_SNM2, Esls_SNM2[1],\
+                                Q_SNM2[1], Qsym_SNM2[1], MSN_SNM2, Ptot_SNM2)
 print('DD-ME2:', SSP2)
 #
 Coupling_DDME2 = np.zeros((IRHOB,3))
